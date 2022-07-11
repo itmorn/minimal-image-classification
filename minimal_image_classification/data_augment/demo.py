@@ -48,10 +48,40 @@ def plot(imgs, with_orig=True, row_title=None, **imshow_kwargs):
 
 if __name__ == '__main__':
     # padded_imgs = [T.Pad(padding=padding)(orig_img) for padding in (3, 10, 30, 50)]
+    # plot(padded_imgs)
 
     # resized_imgs = [T.Resize(size=size)(orig_img) for size in (30, 50, 100, orig_img.size)]
+    # plot(resized_imgs)
 
     # center_crops = [T.CenterCrop(size=size)(orig_img) for size in (30, 50, 100, 300, orig_img.size)]
+    # plot(center_crops)
 
-    (top_left, top_right, bottom_left, bottom_right, center) = T.FiveCrop(size=(300, 300))(orig_img)
-    plot([top_left, top_right, bottom_left, bottom_right, center])
+    # (top_left, top_right, bottom_left, bottom_right, center) = T.FiveCrop(size=(300, 300))(orig_img)
+    # plot([top_left, top_right, bottom_left, bottom_right, center])
+
+    # gray_img = T.Grayscale()(orig_img)
+    # plot([gray_img], cmap='gray')
+
+    # jitter = T.ColorJitter(brightness=.5, hue=.3)
+    # jitted_imgs = [jitter(orig_img) for _ in range(4)]
+    # plot(jitted_imgs)
+
+    # blurrer = T.GaussianBlur(kernel_size=(15, 59), sigma=(5, 15))
+    # blurred_imgs = [blurrer(orig_img) for _ in range(4)]
+    # plot(blurred_imgs)
+
+    # perspective_transformer = T.RandomPerspective(distortion_scale=0.6, p=1.0)
+    # perspective_imgs = [perspective_transformer(orig_img) for _ in range(4)]
+    # plot(perspective_imgs)
+
+    # rotater = T.RandomRotation(degrees=(0, 360))
+    # rotated_imgs = [rotater(orig_img) for _ in range(4)]
+    # plot(rotated_imgs)
+
+    # affine_transfomer = T.RandomAffine(degrees=(30, 70), translate=(0.1, 0.3), scale=(0.5, 0.75),shear=50)
+    # affine_imgs = [affine_transfomer(orig_img) for _ in range(4)]
+    # plot(affine_imgs)
+
+    cropper = T.RandomCrop(size=(400, 400))
+    crops = [cropper(orig_img) for _ in range(4)]
+    plot(crops)
