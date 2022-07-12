@@ -131,6 +131,18 @@ if __name__ == '__main__':
     # imgs = [augmenter(orig_img) for _ in range(4)]
     # plot(imgs)
 
-    augmenter = T.AugMix(severity = 10, mixture_width = 10,chain_depth=3)
-    imgs = [augmenter(orig_img) for _ in range(1)]
-    plot(imgs)
+    # augmenter = T.AugMix(severity = 10, mixture_width = 10,chain_depth=3)
+    # imgs = [augmenter(orig_img) for _ in range(1)]
+    # plot(imgs)
+
+    # hflipper = T.RandomHorizontalFlip(p=0.5)
+    # transformed_imgs = [hflipper(orig_img) for _ in range(4)]
+    # plot(transformed_imgs)
+
+    # vflipper = T.RandomVerticalFlip(p=0.5)
+    # transformed_imgs = [vflipper(orig_img) for _ in range(4)]
+    # plot(transformed_imgs)
+
+    applier = T.RandomApply(transforms=[T.RandomCrop(size=(400, 400)),T.RandomVerticalFlip(p=0.5)], p=0.5)
+    transformed_imgs = [applier(orig_img) for _ in range(4)]
+    plot(transformed_imgs)
