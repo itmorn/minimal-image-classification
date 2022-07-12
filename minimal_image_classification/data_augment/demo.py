@@ -82,6 +82,55 @@ if __name__ == '__main__':
     # affine_imgs = [affine_transfomer(orig_img) for _ in range(4)]
     # plot(affine_imgs)
 
-    cropper = T.RandomCrop(size=(400, 400))
-    crops = [cropper(orig_img) for _ in range(4)]
-    plot(crops)
+    # cropper = T.RandomCrop(size=(400, 400))
+    # crops = [cropper(orig_img) for _ in range(4)]
+    # plot(crops)
+
+    # resize_cropper = T.RandomResizedCrop(size=(200, 300), scale=(0.5, 1.0))
+    # resized_crops = [resize_cropper(orig_img) for _ in range(4)]
+    # plot(resized_crops)
+
+    # inverter = T.RandomInvert(p=0.5)
+    # invertered_imgs = [inverter(orig_img) for _ in range(4)]
+    # plot(invertered_imgs)
+
+    # posterizer = T.RandomPosterize(bits=2)
+    # posterized_imgs = [posterizer(orig_img) for _ in range(4)]
+    # plot(posterized_imgs)
+
+    # solarizer = T.RandomSolarize(threshold=192.0)
+    # solarized_imgs = [solarizer(orig_img) for _ in range(4)]
+    # plot(solarized_imgs)
+
+    # sharpness_adjuster = T.RandomAdjustSharpness(sharpness_factor=10, p=1)
+    # sharpened_imgs = [sharpness_adjuster(orig_img) for _ in range(2)]
+    # plot(sharpened_imgs)
+
+    # autocontraster = T.RandomAutocontrast(p=1)
+    # autocontrasted_imgs = [autocontraster(orig_img) for _ in range(1)]
+    # plot(autocontrasted_imgs)
+
+    # equalizer = T.RandomEqualize(p=1)
+    # equalized_imgs = [equalizer(orig_img) for _ in range(1)]
+    # plot(equalized_imgs)
+
+    # policies = [T.AutoAugmentPolicy.CIFAR10, T.AutoAugmentPolicy.IMAGENET, T.AutoAugmentPolicy.SVHN]
+    # augmenters = [T.AutoAugment(policy) for policy in policies]
+    # imgs = [
+    #     [augmenter(orig_img) for _ in range(4)]
+    #     for augmenter in augmenters
+    # ]
+    # row_title = [str(policy).split('.')[-1] for policy in policies]
+    # plot(imgs, row_title=row_title)
+
+    # augmenter = T.RandAugment()
+    # imgs = [augmenter(orig_img) for _ in range(4)]
+    # plot(imgs)
+
+    # augmenter = T.TrivialAugmentWide()
+    # imgs = [augmenter(orig_img) for _ in range(4)]
+    # plot(imgs)
+
+    augmenter = T.AugMix(severity = 10, mixture_width = 10,chain_depth=3)
+    imgs = [augmenter(orig_img) for _ in range(1)]
+    plot(imgs)
