@@ -29,7 +29,7 @@ def vis_office_model():
     import torch
     from torchvision.io.image import read_image
     from torchvision.models.alexnet import alexnet, AlexNet_Weights
-    import onnx.version_converter
+    # import onnx.version_converter
     img = read_image("../images/balloon.jpg")
 
     weights = AlexNet_Weights.DEFAULT
@@ -51,6 +51,7 @@ def vis_office_model():
     )
 
     # 增加维度信息
+    import onnx.shape_inference
     model_file = 'alexnet.onnx'
     onnx_model = onnx.load(model_file)
     onnx.save(onnx.shape_inference.infer_shapes(onnx_model), model_file)
@@ -58,7 +59,6 @@ def vis_office_model():
 
 
 def eval_office_model():
-    import torch
     import torch.backends.cudnn
     from torch import nn
     import torchvision
@@ -79,10 +79,11 @@ def eval_office_model():
     test_sampler = torch.utils.data.SequentialSampler(dataset_test)
 
     data_loader_test = torch.utils.data.DataLoader(
-        dataset_test, batch_size=32, sampler=test_sampler, num_workers=1, pin_memory=True
+        dataset_test, batch_size=32, sampler=test_sampler, num_workers=16, pin_memory=True
     )
 
     model = alexnet(weights=weights)
+    # model = nn.DataParallel(model,device_ids=range(torch.cuda.device_count()))
     model.to(device)
     model.eval()
 
@@ -103,8 +104,6 @@ def eval_office_model():
             loss = criterion(output, target)
 
             acc1, acc5 = utils.accuracy(output, target, topk=(1, 5))
-            # FIXME need to take into account that the datasets
-            # could have been padded in distributed setup
             batch_size = image.shape[0]
 
             acc1_all += acc1.item()*batch_size
@@ -112,7 +111,12 @@ def eval_office_model():
             loss_all += loss.item()*batch_size
             num += batch_size
 
-            print(f"acc1:{acc1_all/num}\tacc5:{acc5_all/num}\tloss:{loss/num}\t")
+            print(f"acc1:{acc1_all/num}\tacc5:{acc5_all/num}\tloss:{loss/num}")
+            # acc1:56.556	acc5:79.084	loss:0.00011162559530930594
+
+
+def train_model():
+    pass
 
 
 
@@ -124,7 +128,7 @@ if __name__ == '__main__':
     # vis_office_model()
 
     # 在ImageNet的val上评估官方预训练模型的效果
-    eval_office_model()
+    # eval_office_model()
 
     # 训练模型
-    # train_model()
+    train_model()
