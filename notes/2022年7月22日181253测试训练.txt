@@ -2,7 +2,21 @@ train.py --model=resnet18 --data-path=/data01/zhaoyichen/data/ImageNet1k/ --weig
 
 
 多进程训练
-torchrun_script.py --nproc_per_node=2 train.py --model=resnet18 --data-path=/data01/zhaoyichen/data/ImageNet1k/ --weights=ResNet18_Weights.IMAGENET1K_V1
+torchrun_script.py
+--nproc_per_node=2
+train.py
+--model=resnet18
+--data-path=/data01/zhaoyichen/data/ImageNet1k/
+--weights=ResNet18_Weights.IMAGENET1K_V1
+
+多进程验证
+torchrun_script.py
+--nproc_per_node=2
+eval.py
+--test-only
+--model=resnet18
+--data-path=/data01/zhaoyichen/data/ImageNet1k/
+--weights=ResNet18_Weights.IMAGENET1K_V1
 
 
 
