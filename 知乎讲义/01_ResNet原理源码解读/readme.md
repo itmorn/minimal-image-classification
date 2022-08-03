@@ -21,7 +21,7 @@ x = torch.flatten(x, 1)
 x = self.fc(x)
 ```
 ## 2.图像预处理
-![img.png](img.png)
+![img_3.png](img_3.png)
 ### 2.1.训练阶段的预处理：
 ```python
 dataset = torchvision.datasets.ImageFolder(
@@ -119,4 +119,24 @@ class ClassificationPresetEval:
         return self.transforms(img)
 ```
 然后首先将图像Resize到256 * 256，然后CenterCrop成224 * 224，最后Normalize
+## 3.模块介绍
+### 3.1.卷积
+![img_2.png](img_2.png)
+* 先使用7 * 7的大卷积核进行步长=2的卷积，得到112 * 112
+* Relu激活
+* 进行3 * 3的最大值池化，步长=2，得到56 * 56
 
+### 3.2.残差模块
+![img.png](img.png)
+![img_4.png](img_4.png)
+![img_5.png](img_5.png)
+![img_6.png](img_6.png)
+* 每经过一个残差模块（第一个除外），尺寸就除以2，最后得到7 * 7
+* 每经过一个残差模块（第一个除外），特征图的深度就乘以2，最后得到512
+
+### 3.3.全局平均池化
+![img_7.png](img_7.png)
+每一层取均值
+
+### 3.4.全连接
+拉直，加一层全连接网络，输入给criterion = nn.CrossEntropyLoss(label_smoothing=args.label_smoothing)，计算出损失
