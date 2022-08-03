@@ -75,7 +75,7 @@ class ClassificationPresetTrain:
     def __call__(self, img):
         return self.transforms(img)
 ```
-先使用RandomResizedCrop在原图一个随机位置截取块，然后缩放到224。
+先使用RandomResizedCrop在原图一个随机位置截取块，然后缩放到224 * 244。
 ![img_1.png](img_1.png)
 详情可查看https://pytorch.org/vision/stable/auto_examples/plot_transforms.html#sphx-glr-auto-examples-plot-transforms-py
 
@@ -118,5 +118,5 @@ class ClassificationPresetEval:
     def __call__(self, img):
         return self.transforms(img)
 ```
-首先将图像Resize到256*256，然后CenterCrop成224*224，最后Normalize
+然后首先将图像Resize到256 * 256，然后CenterCrop成224 * 224，最后Normalize
 
