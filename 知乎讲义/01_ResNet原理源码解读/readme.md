@@ -140,3 +140,24 @@ class ClassificationPresetEval:
 
 ### 3.4.全连接
 拉直，加一层全连接网络，输入给criterion = nn.CrossEntropyLoss(label_smoothing=args.label_smoothing)，计算出损失
+
+## 4.优化器
+```python
+parameters = utils.set_weight_decay(
+    model,
+    args.weight_decay,
+    norm_weight_decay=args.norm_weight_decay,
+    custom_keys_weight_decay=custom_keys_weight_decay if len(custom_keys_weight_decay) > 0 else None,
+)
+
+optimizer = torch.optim.SGD(
+    parameters,
+    lr=args.lr,
+    momentum=args.momentum,
+    weight_decay=args.weight_decay,
+    nesterov="nesterov" in opt_name,
+)
+
+main_lr_scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=args.lr_step_size, gamma=args.lr_gamma)
+
+```
