@@ -241,7 +241,12 @@ class Bottleneck(nn.Module):
         out = self.relu(out)
 
         return out
-
+```
+```python
+downsample = nn.Sequential(
+    conv1x1(self.inplanes, planes * block.expansion, stride),
+    norm_layer(planes * block.expansion),
+)
 ```
 * 每经过一个残差模块（第一个除外），尺寸就除以2，最后得到7 * 7
 * 在残差模块中，没有使用pooling进行下采样，而是将步长设置为2
