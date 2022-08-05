@@ -225,8 +225,9 @@ def main(args):
 
     print("Creating model",os.getpid())
     # model = torchvision.models.__dict__[args.model](weights=args.weights, num_classes=num_classes)
-    from my_models import my_resnet
-    model = my_resnet.resnet18(weights=args.weights, num_classes=num_classes)
+    from my_models import my_resnet,my_vit
+    # model = my_resnet.resnet18(weights=args.weights, num_classes=num_classes)
+    model = my_vit.vit_b_16(weights=args.weights, num_classes=num_classes)
     model.to(device)
 
     if args.distributed and args.sync_bn:
@@ -376,8 +377,9 @@ def get_args_parser(add_help=True):
 
     parser = argparse.ArgumentParser(description="PyTorch Classification Training", add_help=add_help)
 
-    parser.add_argument("--data-path", default="/datasets01/imagenet_full_size/061417/", type=str, help="dataset path")
-    parser.add_argument("--model", default="resnet18", type=str, help="model name")
+    parser.add_argument("--data-path", default="/data01/zhaoyichen/data/ImageNet1k/", type=str, help="dataset path")
+    # parser.add_argument("--model", default="resnet18", type=str, help="model name")
+    parser.add_argument("--model", default="vit_b_16", type=str, help="model name")
     parser.add_argument("--device", default="cuda", type=str, help="device (Use cuda or cpu Default: cuda)")
     parser.add_argument(
         "-b", "--batch-size", default=32, type=int, help="images per gpu, the total batch size is $NGPU x batch_size"
@@ -504,3 +506,5 @@ def get_args_parser(add_help=True):
 if __name__ == "__main__":
     args = get_args_parser().parse_args()
     main(args)
+#     --model=resnet18 --data-path=/data01/zhaoyichen/data/ImageNet1k/ --workers=1 --weights=ResNet18_Weights.IMAGENET1K_V1
+#     --model=vit_b_16 --data-path=/data01/zhaoyichen/data/ImageNet1k/ --workers=1 --weights=ViT_B_16_Weights.IMAGENET1K_V1
