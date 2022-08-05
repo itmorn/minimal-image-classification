@@ -93,7 +93,7 @@ def forward(self, input: torch.Tensor):
 ### 1.4.1.对输入加 pos_embedding
 input = input + self.pos_embedding
 self.pos_embedding = nn.Parameter(torch.empty(1, seq_length, hidden_dim).normal_(std=0.02))  # from BERT
-位置编码是随机初始化的。
+self.pos_embedding的维度为(n, 197, 768),位置编码是随机初始化的。
 
 ### 1.4.2.对输入进行 dropout
 self.dropout(input)
