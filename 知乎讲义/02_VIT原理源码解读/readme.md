@@ -1,7 +1,6 @@
 本文以pytorch提供的官方 ViT_B_16 为例进行梳理。
 
-# 1.前向传播
-![img.png](img.png)
+# 1.网络前向传播
 ```python
 def forward(self, x: torch.Tensor):
     # Reshape and permute the input tensor
@@ -23,6 +22,8 @@ def forward(self, x: torch.Tensor):
 ```
 
 ## 1.1.输入图像预处理
+![img.png](img.png)
+
 预处理的方式和前面写过的ResNet的方式是一样的，这里不加赘述。
 
 ## 1.2.VIT的预处理
