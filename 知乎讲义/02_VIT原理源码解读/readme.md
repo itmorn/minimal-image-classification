@@ -1,5 +1,6 @@
 本文以pytorch提供的官方 ViT_B_16 为例进行梳理。
-
+# 0.网络结构总览
+![](vit_b_16.onnx.png)
 # 1.网络前向传播
 ```python
 def forward(self, x: torch.Tensor):
