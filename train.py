@@ -225,9 +225,10 @@ def main(args):
 
     print("Creating model",os.getpid())
     # model = torchvision.models.__dict__[args.model](weights=args.weights, num_classes=num_classes)
-    from my_models import my_resnet,my_vit
+    from my_models import my_resnet,my_vit,my_swin
     # model = my_resnet.resnet18(weights=args.weights, num_classes=num_classes)
-    model = my_vit.vit_b_16(weights=args.weights, num_classes=num_classes)
+    # model = my_vit.vit_b_16(weights=args.weights, num_classes=num_classes)
+    model = my_swin.swin_t(weights=args.weights, num_classes=num_classes)
     model.to(device)
 
     if args.distributed and args.sync_bn:
