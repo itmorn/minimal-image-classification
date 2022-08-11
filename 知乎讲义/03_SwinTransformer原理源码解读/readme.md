@@ -432,7 +432,10 @@ def shifted_window_attention(...):
 # Patch Merging
 类似于pooling操作，尺寸/2
 ![img_15.png](img_15.png)
+![img_17.png](img_17.png)
 
 # 关于计算复杂度的一些推导
 ![img_16.png](img_16.png)
 见： https://www.bilibili.com/video/BV13L4y1475U/?spm_id_from=333.788&vd_source=a0ed88162ba357c3f44aa427ad89574b
+
+至此，所有的模块都大概写完了，由于工作原因，写的还是比较粗略，等有时间会完善一下
