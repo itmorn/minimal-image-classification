@@ -21,7 +21,7 @@ def forward(self, x):
 下面来看Patch Partition的部分
 ![img_5.png](img_5.png)
 主要工作就是 split image into non-overlapping patches
-其中，
+代码为：
 ```python
 layers.append(
     nn.Sequential(
@@ -187,7 +187,7 @@ class ShiftedWindowAttention(nn.Module):
 
 那么，我们就先分析一下他们共性的东西都在做什么事情。
 
-首先是初始化了qkv矩阵、投影矩阵以及位置偏差？？
+首先是初始化了qkv矩阵、投影矩阵以及相对位置偏差
 ```python
 self.qkv = nn.Linear(dim, dim * 3, bias=qkv_bias)
 self.proj = nn.Linear(dim, dim, bias=proj_bias)
@@ -198,7 +198,7 @@ self.relative_position_bias_table = nn.Parameter(
 )  # 2*Wh-1 * 2*Ww-1, nH
 ```
 
-然后是建立window内的索引？？
+然后是建立window内的索引
 ```python
 # get pair-wise relative position index for each token inside the window
 coords_h = torch.arange(self.window_size[0])
@@ -287,7 +287,7 @@ B, H, W, C = input.shape #数据依次为 32 56 56 96
 
 在第一个block中x.shape和input.shape相同
 
-在W-MSA中，shift_size=[0,0],所以不需要cyclic shift
+在W-MSA中，shift_size=[0,0]
 
 # partition windows
 ```python
@@ -430,7 +430,7 @@ def shifted_window_attention(...):
 ![img_14.png](img_14.png)
 
 # Patch Merging
-类似于pooling操作
+类似于pooling操作，尺寸/2
 ![img_15.png](img_15.png)
 
 # 关于计算复杂度的一些推导
