@@ -368,6 +368,9 @@ x = x.permute(0, 1, 3, 2, 4, 5).reshape(B, pad_H, pad_W, C)
 
 再下一步，进行类似残差连接的操作。
 # stochastic_depth
+ A LayerNorm (LN) layer is applied
+before each MSA module and each MLP, and a residual
+connection is applied after each module.
 
 # W-MSA小结
 以上，我们就完成了W-MSA的过程。W-MSA主要就是在Linear Embedding后的
@@ -379,13 +382,57 @@ x = x.permute(0, 1, 3, 2, 4, 5).reshape(B, pad_H, pad_W, C)
 
 之所以在局部做attention主要是为了节省计算量，后面我们会量化分析能够节省多少计算
 
-但是在节省计算的同时，也带来了一个问题，就是只能attention到局部的信息，不能attention到更全局的信息，
-而且还会在窗口之间相互独立，而图像的信息是连续的，这样建模势必会降低模型效果。
+但是在节省计算的同时，也带来了2个问题，第一个就是只能attention到局部的信息，不能attention到更全局的信息，
+第二个是在窗口之间相互独立，而图像的信息是连续的，这样建模势必会降低模型效果（用作者的话就是compute self-attention within local windows.）。
 
-为了解决第二个问题，作者提出了SW-MSA算法，前面我们说了SW-MSA和W-MSA类似
+为了解决第二个问题，作者提出了SW-MSA算法（用作者的话The
+window-based self-attention module lacks connections
+across windows, which limits its modeling power.），前面我们说了SW-MSA和W-MSA类似。
 下面，我们来看看SW-MSA和W-MSA比有哪些区别
+
 # SW-MSA和W-MSA的区别
+先看一下他们在代码上的区别
+```python
+def shifted_window_attention(...):
+    ...
+    # cyclic shift
+    if sum(shift_size) > 0:
+        x = torch.roll(x, shifts=(-shift_size[0], -shift_size[1]), dims=(1, 2))
 
+    ...
+    if sum(shift_size) > 0:
+        # generate attention mask
+        attn_mask = x.new_zeros((pad_H, pad_W))
+        h_slices = ((0, -window_size[0]), (-window_size[0], -shift_size[0]), (-shift_size[0], None))
+        w_slices = ((0, -window_size[1]), (-window_size[1], -shift_size[1]), (-shift_size[1], None))
+        count = 0
+        for h in h_slices:
+            for w in w_slices:
+                attn_mask[h[0] : h[1], w[0] : w[1]] = count
+                count += 1
+        attn_mask = attn_mask.view(pad_H // window_size[0], window_size[0], pad_W // window_size[1], window_size[1])
+        attn_mask = attn_mask.permute(0, 2, 1, 3).reshape(num_windows, window_size[0] * window_size[1])
+        attn_mask = attn_mask.unsqueeze(1) - attn_mask.unsqueeze(2)
+        attn_mask = attn_mask.masked_fill(attn_mask != 0, float(-100.0)).masked_fill(attn_mask == 0, float(0.0))
+        attn = attn.view(x.size(0) // num_windows, num_windows, num_heads, x.size(1), x.size(1))
+        attn = attn + attn_mask.unsqueeze(1).unsqueeze(0)
+        attn = attn.view(-1, num_heads, x.size(1), x.size(1))
 
+    ...
+    # reverse cyclic shift
+    if sum(shift_size) > 0:
+        x = torch.roll(x, shifts=(shift_size[0], shift_size[1]), dims=(1, 2))
+    ...
+    return x
+```
+这个移动窗口采用了一种cyclic shift和 efficient batch computation技巧
+这里属于一些工程上的技术细节了，感兴趣的同学可以自行研究一下
+![img_14.png](img_14.png)
 
+# Patch Merging
+类似于pooling操作
+![img_15.png](img_15.png)
 
+# 关于计算复杂度的一些推导
+![img_16.png](img_16.png)
+见： https://www.bilibili.com/video/BV13L4y1475U/?spm_id_from=333.788&vd_source=a0ed88162ba357c3f44aa427ad89574b
