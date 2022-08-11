@@ -1,11 +1,4 @@
 本文以pytorch提供的官方 Swin_T 为例进行梳理。
-# 目录
-```
-模型总览
-Patch Partition
-Linear Embedding
-Swin Transformer Block
-```
 
 # 模型总览
 ![img.png](img.png)
@@ -57,7 +50,7 @@ Linear Embedding的作用就是将每个4 *4的patch转换成一个长度=96的�
 对应代码就是上面的，步长=4，卷积核尺寸为4的卷积。
 
 然后，进行Linear Embedding，其中embed_dim=96=C，
-也就是将每个patch转成一个长度为C的向量，此时的输出为(B,C,H,W)
+也就是将每个patch转成一个长度为C的向量，此时的输出为(B=32,C=96,H=56,W=56)
 
 接着，使用Permute将输出转换为(B,H,W,C)，然后做nn.LayerNorm。
 至于为什么要使用Permute，可以参考[nn.LayerNorm的实现及原理](https://blog.csdn.net/weixin_41978699/article/details/122778085)
@@ -311,7 +304,9 @@ x = x.view(B, pad_H // window_size[0], window_size[0], pad_W // window_size[1], 
 x = x.permute(0, 1, 3, 2, 4, 5).reshape(B * num_windows, window_size[0] * window_size[1], C)  # B*nW, Ws*Ws, C
 ```
 - 第1行会将x的维度转为(32,8,7,8,7,96)。
-- 第2行的permute会将x的维度转为(32,8,8,7,7,96)，然后再转为(2048,49,96) # B * nW, Ws * Ws, C
+- 第2行的permute会将x的维度转为(32,8,8,7,7,96)，然后再转为(2048,49,96) # B * nW, Ws * Ws, C。
+这里的2048可以理解为BERT里的batch size，49可以理解为序列长度，现在只不过把
+一个7 * 7的窗口拉成了49，96可以理解为每个token的嵌入。
 
 这么做的目的是并行计算。
 
@@ -325,6 +320,8 @@ q, k, v = qkv[0], qkv[1], qkv[2]
 q = q * (C // num_heads) ** -0.5
 attn = q.matmul(k.transpose(-2, -1))
 ```
+整个过程可以参考[李宏毅的讲义](https://www.bilibili.com/video/av48285039?p=92&vd_source=a0ed88162ba357c3f44aa427ad89574b)
+![img_12.png](img_12.png)
 第1行：qkv = F.linear(x, qkv_weight, qkv_bias) 表示y = xA^T + b，qkv的维度是(2048,49,288)
 
 第2行：qkv.reshape(x.size(0), x.size(1), 3, num_heads, C // num_heads) 得到维度(2048,49,3,3,32)
@@ -335,9 +332,10 @@ attn = q.matmul(k.transpose(-2, -1))
 
 第4行是一种对query做缩放的方式
 
-第5行是query和key求内积。得到的attn的维度是(2048,3,49,49)
+第5行是query和key求内积。得到的attn的维度是(2048,3,49,49)，这里得到49 *49
+是非常直观的，因为序列长度为49，attention就是要两两之间进行计算
 
-接下来，对求得的值加上位置编码
+接下来，对求得的值加上相对位置编码
 # add relative position bias
 ```python
 attn = attn + relative_position_bias
@@ -355,6 +353,11 @@ x = F.dropout(x, p=dropout)
 ```
 到此，x的维度为(2048,49,96)
 
+
+关于投射层，就是多头自注意力之后降维到我们想要的维度
+![img_13.png](img_13.png)
+
+
 下一步要恢复回窗口
 # reverse windows
 ```python
@@ -366,372 +369,23 @@ x = x.permute(0, 1, 3, 2, 4, 5).reshape(B, pad_H, pad_W, C)
 再下一步，进行类似残差连接的操作。
 # stochastic_depth
 
+# W-MSA小结
+以上，我们就完成了W-MSA的过程。W-MSA主要就是在Linear Embedding后的
+(B=32,C=96,H=56,W=56)的输入上，在进行7 *7的步长为7的partition windows操作。
+可以理解为得到了64个句子，64 * batchsize32 = 2048，这个是可以并行运算的。
+每个句子有49个token，每个token有C=96的维度。
+
+也就是说，W-MSA在做局部的attention（7 * 7的窗口内做attention）
+
+之所以在局部做attention主要是为了节省计算量，后面我们会量化分析能够节省多少计算
+
+但是在节省计算的同时，也带来了一个问题，就是只能attention到局部的信息，不能attention到更全局的信息，
+而且还会在窗口之间相互独立，而图像的信息是连续的，这样建模势必会降低模型效果。
+
+为了解决第二个问题，作者提出了SW-MSA算法，前面我们说了SW-MSA和W-MSA类似
+下面，我们来看看SW-MSA和W-MSA比有哪些区别
+# SW-MSA和W-MSA的区别
 
 
 
 
-
-# self.features的定义
-```python
-if block is None:
-    block = SwinTransformerBlock
-
-if norm_layer is None:
-    norm_layer = partial(nn.LayerNorm, eps=1e-5)
-
-layers: List[nn.Module] = []
-# split image into non-overlapping patches
-layers.append(
-    nn.Sequential(
-        nn.Conv2d(
-            3, embed_dim, kernel_size=(patch_size[0], patch_size[1]), stride=(patch_size[0], patch_size[1])
-        ),
-        Permute([0, 2, 3, 1]),
-        norm_layer(embed_dim),
-    )
-)
-
-total_stage_blocks = sum(depths)
-stage_block_id = 0
-# build SwinTransformer blocks
-for i_stage in range(len(depths)):
-    stage: List[nn.Module] = []
-    dim = embed_dim * 2 ** i_stage
-    for i_layer in range(depths[i_stage]):
-        # adjust stochastic depth probability based on the depth of the stage block
-        sd_prob = stochastic_depth_prob * float(stage_block_id) / (total_stage_blocks - 1)
-        stage.append(
-            block(
-                dim,
-                num_heads[i_stage],
-                window_size=window_size,
-                shift_size=[0 if i_layer % 2 == 0 else w // 2 for w in window_size],
-                mlp_ratio=mlp_ratio,
-                dropout=dropout,
-                attention_dropout=attention_dropout,
-                stochastic_depth_prob=sd_prob,
-                norm_layer=norm_layer,
-            )
-        )
-        stage_block_id += 1
-    layers.append(nn.Sequential(*stage))
-    # add patch merging layer
-    if i_stage < (len(depths) - 1):
-        layers.append(PatchMerging(dim, norm_layer))
-self.features = nn.Sequential(*layers)
-```
-
-
-### 1.1.2.build SwinTransformer blocks
-```python
-total_stage_blocks = sum(depths)
-stage_block_id = 0
-# build SwinTransformer blocks
-for i_stage in range(len(depths)):
-    stage: List[nn.Module] = []
-    dim = embed_dim * 2 ** i_stage
-    for i_layer in range(depths[i_stage]):
-        # adjust stochastic depth probability based on the depth of the stage block
-        sd_prob = stochastic_depth_prob * float(stage_block_id) / (total_stage_blocks - 1)
-        stage.append(
-            block(
-                dim,
-                num_heads[i_stage],
-                window_size=window_size,
-                shift_size=[0 if i_layer % 2 == 0 else w // 2 for w in window_size],
-                mlp_ratio=mlp_ratio,
-                dropout=dropout,
-                attention_dropout=attention_dropout,
-                stochastic_depth_prob=sd_prob,
-                norm_layer=norm_layer,
-            )
-        )
-        stage_block_id += 1
-    layers.append(nn.Sequential(*stage))
-    # add patch merging layer
-    if i_stage < (len(depths) - 1):
-        layers.append(PatchMerging(dim, norm_layer))
-self.features = nn.Sequential(*layers)
-```
-
-其中，
-```python
-patch_size=[4, 4], #最开始将图像打成4*4的patch
-embed_dim=96, #C 可以自定义
-depths=[2, 2, 6, 2], #每个stage中block的个数
-num_heads=[3, 6, 12, 24], # 每个stage中注意力头的个数
-window_size=[7, 7], # 每个block中卷积核的大小？？？
-stochastic_depth_prob=0.2, #每个stage中随机的深度？？？
-```
-
-```python
-for i_stage in range(len(depths)):
-    for i_layer in range(depths[i_stage]):
-        ...
-```
-![img_3.png](img_3.png)
-表示要建立4个Stage，每个Stage中的Swin Transformer Block的个数依次为[2, 2, 6, 2]
-
-其中，
-dim = embed_dim * 2 ** i_stage 
-![img_2.png](img_2.png)
-dim会由C=96，依次变成2C、4C、8C，也就是输出张量的深度越来越大
-
-下面来研究一下最核心的部分，SwinTransformerBlock的定义
-
-### 1.1.3.SwinTransformerBlock
-```python
-class SwinTransformerBlock(nn.Module):
-    """
-    Swin Transformer Block.
-    Args:
-        dim (int): Number of input channels.
-        num_heads (int): Number of attention heads.
-        window_size (List[int]): Window size.
-        shift_size (List[int]): Shift size for shifted window attention.
-        mlp_ratio (float): Ratio of mlp hidden dim to embedding dim. Default: 4.0.
-        dropout (float): Dropout rate. Default: 0.0.
-        attention_dropout (float): Attention dropout rate. Default: 0.0.
-        stochastic_depth_prob: (float): Stochastic depth rate. Default: 0.0.
-        norm_layer (nn.Module): Normalization layer.  Default: nn.LayerNorm.
-        attn_layer (nn.Module): Attention layer. Default: ShiftedWindowAttention
-    """
-
-    def __init__(
-        self,
-        dim: int,
-        num_heads: int,
-        window_size: List[int],
-        shift_size: List[int],
-        mlp_ratio: float = 4.0,
-        dropout: float = 0.0,
-        attention_dropout: float = 0.0,
-        stochastic_depth_prob: float = 0.0,
-        norm_layer: Callable[..., nn.Module] = nn.LayerNorm,
-        attn_layer: Callable[..., nn.Module] = ShiftedWindowAttention,
-    ):
-        super().__init__()
-        _log_api_usage_once(self)
-
-        self.norm1 = norm_layer(dim)
-        self.attn = attn_layer(
-            dim,
-            window_size,
-            shift_size,
-            num_heads,
-            attention_dropout=attention_dropout,
-            dropout=dropout,
-        )
-        self.stochastic_depth = StochasticDepth(stochastic_depth_prob, "row")
-        self.norm2 = norm_layer(dim)
-        self.mlp = MLP(dim, [int(dim * mlp_ratio), dim], activation_layer=nn.GELU, inplace=None, dropout=dropout)
-
-        for m in self.mlp.modules():
-            if isinstance(m, nn.Linear):
-                nn.init.xavier_uniform_(m.weight)
-                if m.bias is not None:
-                    nn.init.normal_(m.bias, std=1e-6)
-
-    def forward(self, x: Tensor):
-        x = x + self.stochastic_depth(self.attn(self.norm1(x)))
-        x = x + self.stochastic_depth(self.mlp(self.norm2(x)))
-        return x
-```
-观察其forward函数，网络传播过程为：
-* nn.LayerNorm
-* ShiftedWindowAttention
-* stochastic_depth
-
-我们先来研究ShiftedWindowAttention
-#### 1.1.3.1.ShiftedWindowAttention
-```python
-class ShiftedWindowAttention(nn.Module):
-    """
-    See :func:`shifted_window_attention`.
-    """
-
-    def __init__(
-        self,
-        dim: int,
-        window_size: List[int],
-        shift_size: List[int],
-        num_heads: int,
-        qkv_bias: bool = True,
-        proj_bias: bool = True,
-        attention_dropout: float = 0.0,
-        dropout: float = 0.0,
-    ):
-        super().__init__()
-        if len(window_size) != 2 or len(shift_size) != 2:
-            raise ValueError("window_size and shift_size must be of length 2")
-        self.window_size = window_size
-        self.shift_size = shift_size
-        self.num_heads = num_heads
-        self.attention_dropout = attention_dropout
-        self.dropout = dropout
-
-        self.qkv = nn.Linear(dim, dim * 3, bias=qkv_bias)
-        self.proj = nn.Linear(dim, dim, bias=proj_bias)
-
-        # define a parameter table of relative position bias
-        self.relative_position_bias_table = nn.Parameter(
-            torch.zeros((2 * window_size[0] - 1) * (2 * window_size[1] - 1), num_heads)
-        )  # 2*Wh-1 * 2*Ww-1, nH
-
-        # get pair-wise relative position index for each token inside the window
-        coords_h = torch.arange(self.window_size[0])
-        coords_w = torch.arange(self.window_size[1])
-        coords = torch.stack(torch.meshgrid(coords_h, coords_w, indexing="ij"))  # 2, Wh, Ww
-        coords_flatten = torch.flatten(coords, 1)  # 2, Wh*Ww
-        relative_coords = coords_flatten[:, :, None] - coords_flatten[:, None, :]  # 2, Wh*Ww, Wh*Ww
-        relative_coords = relative_coords.permute(1, 2, 0).contiguous()  # Wh*Ww, Wh*Ww, 2
-        relative_coords[:, :, 0] += self.window_size[0] - 1  # shift to start from 0
-        relative_coords[:, :, 1] += self.window_size[1] - 1
-        relative_coords[:, :, 0] *= 2 * self.window_size[1] - 1
-        relative_position_index = relative_coords.sum(-1).view(-1)  # Wh*Ww*Wh*Ww
-        self.register_buffer("relative_position_index", relative_position_index)
-
-        nn.init.trunc_normal_(self.relative_position_bias_table, std=0.02)
-
-    def forward(self, x: Tensor):
-        """
-        Args:
-            x (Tensor): Tensor with layout of [B, H, W, C]
-        Returns:
-            Tensor with same layout as input, i.e. [B, H, W, C]
-        """
-
-        N = self.window_size[0] * self.window_size[1]
-        relative_position_bias = self.relative_position_bias_table[self.relative_position_index]  # type: ignore[index]
-        relative_position_bias = relative_position_bias.view(N, N, -1)
-        relative_position_bias = relative_position_bias.permute(2, 0, 1).contiguous().unsqueeze(0)
-
-        return shifted_window_attention(
-            x,
-            self.qkv.weight,
-            self.proj.weight,
-            relative_position_bias,
-            self.window_size,
-            self.num_heads,
-            shift_size=self.shift_size,
-            attention_dropout=self.attention_dropout,
-            dropout=self.dropout,
-            qkv_bias=self.qkv.bias,
-            proj_bias=self.proj.bias,
-        )
-```
-其中init里主要定义了位置编码信息，attention的内容在shifted_window_attention函数中
-```python
-def shifted_window_attention(
-    input: Tensor,
-    qkv_weight: Tensor,
-    proj_weight: Tensor,
-    relative_position_bias: Tensor,
-    window_size: List[int],
-    num_heads: int,
-    shift_size: List[int],
-    attention_dropout: float = 0.0,
-    dropout: float = 0.0,
-    qkv_bias: Optional[Tensor] = None,
-    proj_bias: Optional[Tensor] = None,
-):
-    """
-    Window based multi-head self attention (W-MSA) module with relative position bias.
-    It supports both of shifted and non-shifted window.
-    Args:
-        input (Tensor[N, H, W, C]): The input tensor or 4-dimensions.
-        qkv_weight (Tensor[in_dim, out_dim]): The weight tensor of query, key, value.
-        proj_weight (Tensor[out_dim, out_dim]): The weight tensor of projection.
-        relative_position_bias (Tensor): The learned relative position bias added to attention.
-        window_size (List[int]): Window size.
-        num_heads (int): Number of attention heads.
-        shift_size (List[int]): Shift size for shifted window attention.
-        attention_dropout (float): Dropout ratio of attention weight. Default: 0.0.
-        dropout (float): Dropout ratio of output. Default: 0.0.
-        qkv_bias (Tensor[out_dim], optional): The bias tensor of query, key, value. Default: None.
-        proj_bias (Tensor[out_dim], optional): The bias tensor of projection. Default: None.
-    Returns:
-        Tensor[N, H, W, C]: The output tensor after shifted window attention.
-    """
-    B, H, W, C = input.shape
-    # pad feature maps to multiples of window size
-    pad_r = (window_size[1] - W % window_size[1]) % window_size[1]
-    pad_b = (window_size[0] - H % window_size[0]) % window_size[0]
-    x = F.pad(input, (0, 0, 0, pad_r, 0, pad_b))
-    _, pad_H, pad_W, _ = x.shape
-
-    # If window size is larger than feature size, there is no need to shift window
-    if window_size[0] >= pad_H:
-        shift_size[0] = 0
-    if window_size[1] >= pad_W:
-        shift_size[1] = 0
-
-    # cyclic shift
-    if sum(shift_size) > 0:
-        x = torch.roll(x, shifts=(-shift_size[0], -shift_size[1]), dims=(1, 2))
-
-    # partition windows
-    num_windows = (pad_H // window_size[0]) * (pad_W // window_size[1])
-    x = x.view(B, pad_H // window_size[0], window_size[0], pad_W // window_size[1], window_size[1], C)
-    x = x.permute(0, 1, 3, 2, 4, 5).reshape(B * num_windows, window_size[0] * window_size[1], C)  # B*nW, Ws*Ws, C
-
-    # multi-head attention
-    qkv = F.linear(x, qkv_weight, qkv_bias)
-    qkv = qkv.reshape(x.size(0), x.size(1), 3, num_heads, C // num_heads).permute(2, 0, 3, 1, 4)
-    q, k, v = qkv[0], qkv[1], qkv[2]
-    q = q * (C // num_heads) ** -0.5
-    attn = q.matmul(k.transpose(-2, -1))
-    # add relative position bias
-    attn = attn + relative_position_bias
-
-    if sum(shift_size) > 0:
-        # generate attention mask
-        attn_mask = x.new_zeros((pad_H, pad_W))
-        h_slices = ((0, -window_size[0]), (-window_size[0], -shift_size[0]), (-shift_size[0], None))
-        w_slices = ((0, -window_size[1]), (-window_size[1], -shift_size[1]), (-shift_size[1], None))
-        count = 0
-        for h in h_slices:
-            for w in w_slices:
-                attn_mask[h[0] : h[1], w[0] : w[1]] = count
-                count += 1
-        attn_mask = attn_mask.view(pad_H // window_size[0], window_size[0], pad_W // window_size[1], window_size[1])
-        attn_mask = attn_mask.permute(0, 2, 1, 3).reshape(num_windows, window_size[0] * window_size[1])
-        attn_mask = attn_mask.unsqueeze(1) - attn_mask.unsqueeze(2)
-        attn_mask = attn_mask.masked_fill(attn_mask != 0, float(-100.0)).masked_fill(attn_mask == 0, float(0.0))
-        attn = attn.view(x.size(0) // num_windows, num_windows, num_heads, x.size(1), x.size(1))
-        attn = attn + attn_mask.unsqueeze(1).unsqueeze(0)
-        attn = attn.view(-1, num_heads, x.size(1), x.size(1))
-
-    attn = F.softmax(attn, dim=-1)
-    attn = F.dropout(attn, p=attention_dropout)
-
-    x = attn.matmul(v).transpose(1, 2).reshape(x.size(0), x.size(1), C)
-    x = F.linear(x, proj_weight, proj_bias)
-    x = F.dropout(x, p=dropout)
-
-    # reverse windows
-    x = x.view(B, pad_H // window_size[0], pad_W // window_size[1], window_size[0], window_size[1], C)
-    x = x.permute(0, 1, 3, 2, 4, 5).reshape(B, pad_H, pad_W, C)
-
-    # reverse cyclic shift
-    if sum(shift_size) > 0:
-        x = torch.roll(x, shifts=(shift_size[0], shift_size[1]), dims=(1, 2))
-
-    # unpad features
-    x = x[:, :H, :W, :].contiguous()
-    return x
-```
-
-首先看cyclic shift
-##### 1.1.3.1.1.cyclic shift
-```python
-# cyclic shift
-if sum(shift_size) > 0:
-    x = torch.roll(x, shifts=(-shift_size[0], -shift_size[1]), dims=(1, 2))
-```
-其中，partition windows：
-![img_4.png](img_4.png)
-从上图可以看出，Two Successive Swin Transformer Blocks中的第一个是没有移动窗口的
-因此，sum(shift_size)==0，先不做循环移动。
-
-num_windows = (pad_H // window_size[0]) * (pad_W // window_size[1])=(56 // 7) * (56 // 7)=64
